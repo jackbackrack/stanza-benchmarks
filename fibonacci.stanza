@@ -1,0 +1,25 @@
+defpackage benchmark :
+  import core
+  import math
+  import props
+
+val props     = Props()
+var iters     = 0
+val itersProp = IntProp("iters", { iters }, { iters = _ }, 1, 1, 100000000)
+install(props, itersProp)
+
+defn* fibonacci (n:Int) -> Int :
+  if n < 2 :
+    n
+  else :
+    fibonacci(n - 2) + fibonacci(n - 1)
+
+defn main () :
+  parse-args(props, command-line-arguments())
+  val timer = MillisecondTimer("benchmark")
+  start(timer)
+  val res = fibonacci(iters)
+  stop(timer)
+  println(to-float(time(timer)) / 1000.0f)
+
+main()

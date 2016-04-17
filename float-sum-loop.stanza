@@ -1,0 +1,50 @@
+defpackage benchmark :
+  import core
+  import math
+  import props
+
+val props     = Props()
+var iters     = 0
+val itersProp = IntProp("iters", { iters }, { iters = _ }, 1, 1, 100000000)
+install(props, itersProp)
+var kind      = 0
+val kindProp  = IntProp("kind", { kind }, { kind = _ }, 0, 0, 2)
+install(props, kindProp)
+
+defn fast (n:Int) -> Float :
+  defn* loop (sum:Float, i:Int) :
+    if i < n :
+      loop(sum + to-float(i), i + 1)
+    else :
+      sum
+  loop(0.0f, 0)
+
+defn slower (n:Int) -> Float :
+  var sum = 0.0f
+  for i in 0 to n do :
+    sum = sum + to-float(i)
+  sum
+
+defn slowest (n:Int) -> Float :
+  var sum = 0.0f
+  label<Float> return :
+    for i in 0 to false do :
+      if i == n :
+        return(sum)
+      sum = sum + to-float(i)
+    0.0f
+
+defn main () :
+  parse-args(props, command-line-arguments())
+  val timer = MillisecondTimer("benchmark")
+  start(timer)
+  val res = if kind == 0 :
+    fast(iters)
+  else if kind == 1 :
+    slower(iters)
+  else :
+    slowest(iters)
+  stop(timer)
+  println(to-float(time(timer)) / 1000.0f)
+
+main()

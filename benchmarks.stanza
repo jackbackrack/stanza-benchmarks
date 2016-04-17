@@ -1,0 +1,34 @@
+defpackage benchmarks :
+  import core
+  import math
+  import collections
+
+defn compile-c (name:String, opt:Int) :
+  val cmd = string-join(["cc -o " "build/c-" name "-" opt " -O" opt " " name ".c"])
+  println(cmd)
+  call-system(cmd)
+  
+defn compile-stanza (name:String) :
+  val cmd = string-join(["stanza3 ../stanza-props/props.stanza " name ".stanza -o build/" name " -optimize"])
+  println(cmd)
+  call-system(cmd)
+  
+defn run-benchmark (cmd:String) -> Float :
+  call-system(string-join(["build/" cmd " > res.txt"]))
+  val sres = trim(slurp("res.txt"))
+  ;; println-all(["BENCHMARK " cmd " " sres])
+  to-float(sres) as Float
+  
+defn run-comparison (name:String, iters:Int, kinds:Int) :
+  for i in 0 to 3 do:
+    compile-c(name, i)
+  compile-stanza(name)
+  val c-rez = to-tuple $ generate<Float> :
+    for i in 0 to 3 do:
+      yield(run-benchmark(string-join(["c-" name "-" i " " iters])))
+  for kind in 0 to kinds do :
+    val stz-res = run-benchmark(string-join([name " :iters " iters " :kind " kind]))
+    println-all([name " STZ " kind " SLOWDOWNS: " map({stz-res / _}, c-rez)])
+
+run-comparison("fibonacci", 40, 0)
+run-comparison("float-sum-loop", 100000000, 3)
