@@ -3,15 +3,21 @@ defpackage benchmarks :
   import math
   import collections
 
-defn compile-c (name:String, opt:Int) :
+defn time-call-system (cmd:String) -> Float :
+  val timer = MillisecondTimer("benchmark")
+  start(timer)
+  ;; println(cmd)
+  call-system(cmd)
+  stop(timer)
+  to-float(time(timer)) / 1000.0f
+
+defn compile-c (name:String, opt:Int) -> Float :
   val cmd = string-join(["cc -o " "build/c-" name "-" opt " -O" opt " " name ".c"])
-  println(cmd)
-  call-system(cmd)
+  time-call-system(cmd)
   
-defn compile-stanza (name:String) :
-  val cmd = string-join(["stanza3 ../stanza-props/props.stanza " name ".stanza -o build/" name " -optimize"])
-  println(cmd)
-  call-system(cmd)
+defn compile-stanza (name:String) -> Float :
+  val cmd = string-join(["stanza3 ../stanza-props/props.stanza " name ".stanza -o build/" name " -optimize > build/out.txt"])
+  time-call-system(cmd)
   
 defn run-benchmark (cmd:String) -> Float :
   call-system(string-join(["build/" cmd " > res.txt"]))
@@ -20,15 +26,17 @@ defn run-benchmark (cmd:String) -> Float :
   to-float(sres) as Float
   
 defn run-comparison (name:String, iters:Int, kinds:Int) :
-  for i in 0 to 3 do:
-    compile-c(name, i)
-  compile-stanza(name)
-  val c-rez = to-tuple $ generate<Float> :
+  val ct-res-s = compile-stanza(name)
+  val ct-rez-c = to-tuple $ generate<Float> :
+    for i in 0 to 3 do:
+      yield(compile-c(name, i))
+  println-all([name " CT SLOWDOWNS: " map({ct-res-s / _}, ct-rez-c)])
+  val rt-rez-c = to-tuple $ generate<Float> :
     for i in 0 to 3 do:
       yield(run-benchmark(string-join(["c-" name "-" i " " iters])))
   for kind in 0 to kinds do :
-    val stz-res = run-benchmark(string-join([name " :iters " iters " :kind " kind]))
-    println-all([name " STZ " kind " SLOWDOWNS: " map({stz-res / _}, c-rez)])
+    val rt-res-s = run-benchmark(string-join([name " :iters " iters " :kind " kind]))
+    println-all([name " STZ " kind " RT SLOWDOWNS: " map({rt-res-s / _}, rt-rez-c)])
 
-run-comparison("fibonacci", 40, 0)
+run-comparison("fibonacci", 40, 1)
 run-comparison("float-sum-loop", 100000000, 3)
