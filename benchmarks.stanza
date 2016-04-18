@@ -36,7 +36,7 @@ defn run-comparison (name:String, iters:Int, kinds:Int) :
       yield(run-benchmark(string-join(["c-" name "-" i " " iters])))
   for kind in 0 to kinds do :
     val rt-res-s = run-benchmark(string-join([name " :iters " iters " :kind " kind]))
-    println-all([name " STZ " kind " RT SLOWDOWNS: " map({rt-res-s / _}, rt-rez-c)])
+    println-all([name " :kind " kind " RT SLOWDOWNS: " map({rt-res-s / _}, rt-rez-c)])
 
 run-comparison("fibonacci", 40, 1)
 run-comparison("float-sum-loop", 100000000, 3)
