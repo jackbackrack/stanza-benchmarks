@@ -1,3 +1,5 @@
+// See license.txt for details about licensing.
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
