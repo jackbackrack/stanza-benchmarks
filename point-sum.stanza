@@ -1,0 +1,36 @@
+defpackage benchmark :
+  import core
+  import math
+  import props
+
+val props     = Props()
+var iters     = 0
+val itersProp = IntProp("iters", { iters }, { iters = _ }, 1, 1, 100000000)
+install(props, itersProp)
+
+public defstruct V3f <: Array<Float> :
+  x: Float
+  y: Float
+  z: Float
+
+public defn plus (a:V3f, b:V3f) -> V3f :
+  V3f(x(a) + x(b), y(a) + y(b), z(a) + z(b))
+
+defn fast (n:Int, p:V3f) -> V3f :
+  defn* loop (sum:V3f, i:Int) :
+    if i < n :
+      loop(sum + p, i + 1)
+    else :
+      sum
+  loop(V3f(0.0f, 0.0f, 0.0f), 0)
+
+defn main () :
+  parse-args(props, command-line-arguments())
+  val timer = MillisecondTimer("benchmark")
+  start(timer)
+  val p   = V3f(0.1f, 0.2f, 0.3f)
+  val res = fast(iters, p)
+  stop(timer)
+  println(to-float(time(timer)) / 1000.0f)
+
+main()

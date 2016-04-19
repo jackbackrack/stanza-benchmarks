@@ -1,0 +1,36 @@
+defpackage benchmark :
+  import core
+  import math
+  import props
+
+val props     = Props()
+var iters     = 0
+val itersProp = IntProp("iters", { iters }, { iters = _ }, 1, 1, 100000000)
+install(props, itersProp)
+
+defn vsum (v:Array<Float>) -> Float :
+  defn* loop (s:Float, i:Int) :
+    if i < length(v) :
+      loop(s + v[i], i + 1)
+    else :
+      s
+  loop(0.0f, 0)
+
+defn* n-sum (n:Int, v:Array<Float>) -> Float :
+  defn* loop (s:Float, i:Int) :
+    if i < n :
+      loop(s + vsum(v), i + 1)
+    else :
+      s
+  loop(0.0f, 0)
+
+defn main () :
+  parse-args(props, command-line-arguments())
+  val timer = MillisecondTimer("benchmark")
+  start(timer)
+  val v   = Array<Float>(1000)
+  val res = n-sum(iters, v)
+  stop(timer)
+  println(to-float(time(timer)) / 1000.0f)
+
+main()

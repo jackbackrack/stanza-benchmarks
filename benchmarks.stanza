@@ -11,32 +11,84 @@ defn time-call-system (cmd:String) -> Float :
   stop(timer)
   to-float(time(timer)) / 1000.0f
 
-defn compile-c (name:String, opt:Int) -> Float :
-  val cmd = string-join(["cc -o " "build/c-" name "-" opt " -O" opt " " name ".c"])
-  time-call-system(cmd)
-  
-defn compile-stanza (name:String) -> Float :
-  val cmd = string-join(["stanza3 ../stanza-props/props.stanza " name ".stanza -o build/" name " -optimize > build/out.txt"])
-  time-call-system(cmd)
-  
 defn run-benchmark (cmd:String) -> Float :
   call-system(string-join(["build/" cmd " > res.txt"]))
   val sres = trim(slurp("res.txt"))
   ;; println-all(["BENCHMARK " cmd " " sres])
   to-float(sres) as Float
   
-defn run-comparison (name:String, iters:Int, kinds:Int) :
-  val ct-res-s = compile-stanza(name)
-  val ct-rez-c = to-tuple $ generate<Float> :
-    for i in 0 to 3 do:
-      yield(compile-c(name, i))
-  println-all([name " CT SLOWDOWNS: " map({ct-res-s / _}, ct-rez-c)])
-  val rt-rez-c = to-tuple $ generate<Float> :
-    for i in 0 to 3 do:
-      yield(run-benchmark(string-join(["c-" name "-" i " " iters])))
-  for kind in 0 to kinds do :
-    val rt-res-s = run-benchmark(string-join([name " :iters " iters " :kind " kind]))
-    println-all([name " :kind " kind " RT SLOWDOWNS: " map({rt-res-s / _}, rt-rez-c)])
+deftype Lang <: Equalable
+defmulti name (l:Lang) -> String
+defmulti compile (l:Lang, name:String, opt:Int) -> Float
+defmulti run (l:Lang, name:String, opt:Int, kind:Int, iters:Int) -> Float
+defmulti opts (l:Lang) -> Int
 
-run-comparison("fibonacci", 40, 1)
-run-comparison("float-sum-loop", 100000000, 3)
+defmethod equal? (l0:Lang, l1:Lang) : name(l0) == name(l1)
+
+deftype C <: Lang
+defn C () :
+  new C :
+    defmethod name (this) : "c"
+    defmethod opts (this) : 3
+    defmethod compile (this, name:String, opt:Int) -> Float :
+      val cmd = string-join(["cc -o " "build/c-" name "-" opt " -O" opt " " name ".c"])
+      time-call-system(cmd)
+    defmethod run (this, name:String, opt:Int, kind:Int, iters:Int) -> Float :
+      run-benchmark(string-join(["c-" name "-" opt " " iters]))  
+
+val c = C()
+
+deftype Cpp <: Lang
+defn Cpp () :
+  new Cpp :
+    defmethod name (this) : "c++"
+    defmethod opts (this) : 3
+    defmethod compile (this, name:String, opt:Int) -> Float :
+      val cmd = string-join(["c++ -o " "build/cpp-" name "-" opt " -O" opt " " name ".cpp"])
+      time-call-system(cmd)
+    defmethod run (this, name:String, opt:Int, kind:Int, iters:Int) -> Float :
+      run-benchmark(string-join(["cpp-" name "-" opt " " iters]))  
+
+val cpp = Cpp()
+
+deftype Stanza <: Lang
+defn Stanza () :
+  new Stanza :
+    defmethod name (this) : "stanza"
+    defmethod opts (this) : 1
+    defmethod compile (this, name:String, opt:Int) -> Float :
+      val cmd = string-join(["stanza3 ../stanza-props/props.stanza " name ".stanza -o build/stz-" name " -optimize > build/out.txt"])
+      time-call-system(cmd)
+    defmethod run (this, name:String, opt:Int, kind:Int, iters:Int) -> Float :
+      run-benchmark(string-join(["stz-" name " :iters " iters " :kind " kind]))
+
+val stanza = Stanza()
+
+defn compiles (l:Lang, name:String) -> Seq<Float> :
+  for o in 0 to opts(l) seq : compile(l, name, o)
+
+defn runs (l:Lang, name:String, kinds:Int, iters:Int) -> Seq<Float> :
+  cat-all $ for k in 0 to kinds seq : 
+    for o in 0 to opts(l) seq :
+      run(l, name, o, k, iters)
+
+defn run-comparison (app:String, langs:Tuple<Lang>, kinds:Int, iters:Int) :
+  val ct-res = HashTable<Lang, Tuple<Float>>(hash{name(_)})
+  val rt-res = HashTable<Lang, Tuple<Float>>(hash{name(_)})
+  for l in langs do :
+    ct-res[l] = to-tuple $ compiles(l, app)
+    rt-res[l] = to-tuple $ runs(l, app, kinds, iters)
+  for j in 0 to length(langs) do :
+    for i in (j + 1) to length(langs) do :
+      val ct-resj = ct-res[langs[j]]
+      val ct-resi = ct-res[langs[i]]
+      val ct-rez = to-tuple $ cat-all $ for crj in ct-resj seq : for cri in ct-resi seq : crj / cri
+      val rt-resj = rt-res[langs[j]]
+      val rt-resi = rt-res[langs[i]]
+      val rt-rez = to-tuple $ cat-all $ for rrj in rt-resj seq : for rri in rt-resi seq : rrj / rri
+      println-all([app  " " name(langs[j]) "/" name(langs[i]) " CT " ct-rez " RT " rt-rez])
+
+run-comparison("fibonacci",        [stanza, c],  1, 40)
+run-comparison("float-sum-loop",   [stanza, c],  3, 100000000)
+run-comparison("point-sum",        [stanza, cpp] 1, 100000000)
+run-comparison("float-vector-sum", [stanza, c],  1, 1000000)
